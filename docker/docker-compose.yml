@@ -1,0 +1,131 @@
+---
+
+networks:
+  npm:
+    # external: true
+
+volumes:
+  # nextcloud:
+  db:
+
+services:
+
+  # db:
+  #   image: 'mariadb:latest'
+  #   restart: always
+  #   container_name: mariadb
+  #   networks:
+  #     - npm
+  #   # command: --transaction-isolation=READ-COMMITTED --binlog-format=ROW --innodb-file-per-table=1 --skip-innodb-read-only-compressed # just copied this from some other dude. Not sure it's necessary. 
+  #   volumes:
+  #     - db:/var/lib/mysql
+  #   environment:
+  #     - MYSQL_ROOT_PASSWORD=/docker/secrets/mariadb/root_password #change this
+  #     - MYSQL_PASSWORD=/docker/secrets/mariadb/password #change this
+  #     - MYSQL_DATABASE=nextcloud
+  #     - MYSQL_USER=nextcloud
+
+  # nextcloud:
+  #   image: 'nextcloud:latest'
+  #   restart: always
+  #   container_name: nextcloud
+  #   networks:
+  #     - npm
+  #   ports:
+  #     - 4433:80
+  #   links:
+  #     - db
+  #   volumes:
+  #     - /docker/nextcloud:/var/www/html
+  #   environment:
+  #     - MYSQL_PASSWORD=/docker/secrets/mariadb/password #change this
+  #     - MYSQL_DATABASE=nextcloud
+  #     - MYSQL_USER=nextcloud
+  #     - MYSQL_HOST=db
+  #     - NEXTCLOUD_TRUSTED_DOMAINS=nixcloud.xyz
+
+  nginx-proxy-manager:
+    image: 'jc21/nginx-proxy-manager:latest'
+    restart: unless-stopped
+    container_name: npm
+    networks:
+      - npm
+    ports:
+      # These ports are in format <host-port>:<container-port>
+      - '80:80' # Public HTTP Port
+      - '443:443' # Public HTTPS Port
+      - '81:81' # Admin Web Port
+      # Add any other Stream port you want to expose
+      # - '21:21' # FTP
+    # Uncomment the next line if you uncomment anything in the section
+    environment:
+      # Uncomment this if you want to change the location of 
+      # the SQLite DB file within the container
+      # DB_SQLITE_FILE: "/data/database.sqlite"
+      # Uncomment this if IPv6 is not enabled on your host
+      DISABLE_IPV6: 'true'
+    volumes:
+      - /docker/npm/data:/data
+      - /docker/npm/letsencrypt:/etc/letsencrypt
+
+  # vaultwarden:
+  #   image: 'vaultwarden/server:latest'
+  #   restart: unless-stopped
+  #   container_name: vaultwarden
+  #   networks:
+  #     - npm
+  #   volumes: 
+  #     - /docker/vaultwarden:/data/
+  #   ports:
+  #     - '8080:80'
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower
+    networks:
+      - npm
+    volumes:
+     - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
+  heimdall:
+    image: lscr.io/linuxserver/heimdall:latest
+    container_name: heimdall
+    networks:
+      - npm
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Berlin
+    volumes:
+      - /docker/heimdall/config:/config
+    ports:
+      - 8888:80
+      - 4333:443
+    restart: unless-stopped
+
+  adguard:
+      image: adguard/adguardhome:latest
+      container_name: adguard
+      networks:
+        - npm
+      volumes:
+        - /docker/adguard/workdir:/opt/adguardhome/work
+        - /docker/adguard/confdir:/opt/adguardhome/conf
+      ports:
+        - 53:53/tcp
+        - 53:53/udp
+        # - 67:67/tcp
+        # - 67:67/udp
+        - 8123:80/tcp
+        - 4123:443/tcp
+        - 4123:443/udp
+        - 3000:3000/tcp
+        - 853:853/tcp
+        - 853:853/udp
+        - 784:784/udp
+        - 8853:8853/udp
+        - 5543:5543/tcp
+        - 5543:5543/udp
+      restart: unless-stopped
+
